@@ -1,0 +1,1079 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="theme-color" content="#f4f7f2" media="(prefers-color-scheme: light)" />
+  <meta name="theme-color" content="#101511" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" href="data:," />
+  <title>YOLO Live Detector</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
+
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f7f2;
+      --surface: #ffffff;
+      --surface-2: #e8eee8;
+      --ink: #101713;
+      --muted: #526058;
+      --line: #17211b;
+      --mint: #7cf2b1;
+      --mint-strong: #16a968;
+      --yellow: #ffe36e;
+      --coral: #ff8878;
+      --blue: #79b7ff;
+      --danger: #cc3d3d;
+      --shadow: 3px 3px 0 var(--line);
+      --radius: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101511;
+        --surface: #18201b;
+        --surface-2: #222d26;
+        --ink: #f3f7f4;
+        --muted: #b8c5bd;
+        --line: #e7eee9;
+        --mint: #55d994;
+        --mint-strong: #63e3a2;
+        --yellow: #e9c951;
+        --coral: #f07e70;
+        --blue: #71aaf0;
+        --danger: #ff8b8b;
+        --shadow: 3px 3px 0 rgba(231, 238, 233, .72);
+      }
+    }
+
+    * { box-sizing: border-box; }
+    html { min-width: 320px; background: var(--bg); }
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background:
+        linear-gradient(var(--surface-2) 1px, transparent 1px),
+        linear-gradient(90deg, var(--surface-2) 1px, transparent 1px),
+        var(--bg);
+      background-size: 28px 28px;
+      color: var(--ink);
+      font-family: "DM Sans", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input { font: inherit; }
+    button { color: inherit; }
+
+    .app {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 16px 14px max(26px, env(safe-area-inset-bottom));
+    }
+
+    .intro {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 2px 0 14px;
+    }
+
+    .intro h1 {
+      margin: 0;
+      max-width: 720px;
+      font-size: clamp(1.55rem, 5.8vw, 2.8rem);
+      line-height: .98;
+      letter-spacing: -.045em;
+    }
+
+    .intro p {
+      margin: 8px 0 0;
+      max-width: 640px;
+      color: var(--muted);
+      font-size: .94rem;
+      line-height: 1.45;
+    }
+
+    .model-chip {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 36px;
+      padding: 7px 10px;
+      border: 2px solid var(--line);
+      border-radius: 999px;
+      background: var(--yellow);
+      color: #17160f;
+      font: 600 .74rem/1 "IBM Plex Mono", monospace;
+      box-shadow: 2px 2px 0 var(--line);
+      white-space: nowrap;
+    }
+
+    .model-chip i,
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      display: inline-block;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 284px;
+      align-items: start;
+      gap: 14px;
+    }
+
+    .viewer-card,
+    .panel {
+      border: 2px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .viewer-card { overflow: hidden; }
+
+    .viewer-top {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 10px;
+      border-bottom: 2px solid var(--line);
+      background: var(--surface);
+    }
+
+    .status {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font: 600 .78rem/1.2 "IBM Plex Mono", monospace;
+    }
+
+    .status .live-dot { background: var(--muted); }
+    .status.is-live .live-dot {
+      background: #12b968;
+      box-shadow: 0 0 0 3px color-mix(in srgb, #12b968 22%, transparent);
+      animation: pulse 1.5s infinite;
+    }
+    .status.is-error .live-dot { background: var(--danger); }
+
+    @keyframes pulse { 50% { opacity: .55; } }
+
+    .viewer-meta {
+      display: flex;
+      gap: 12px;
+      color: var(--muted);
+      font: 500 .69rem/1 "IBM Plex Mono", monospace;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      min-height: 260px;
+      overflow: hidden;
+      background: #0b0e0c;
+    }
+
+    video,
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    video { transform: scaleX(var(--mirror, 1)); }
+    #overlay { z-index: 2; pointer-events: none; }
+
+    .start-layer {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background:
+        linear-gradient(135deg, rgba(124,242,177,.15), rgba(121,183,255,.13)),
+        #101512;
+      color: #f5faf6;
+      text-align: center;
+    }
+
+    .start-layer[hidden] { display: none; }
+
+    .start-content { max-width: 430px; }
+    .camera-mark {
+      width: 62px;
+      height: 62px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 14px;
+      border: 2px solid #f5faf6;
+      border-radius: 16px;
+      background: #7cf2b1;
+      color: #101713;
+      box-shadow: 3px 3px 0 #f5faf6;
+    }
+    .camera-mark svg { width: 31px; height: 31px; }
+    .start-content h2 {
+      margin: 0;
+      font-size: clamp(1.25rem, 4.8vw, 1.8rem);
+      line-height: 1.1;
+      letter-spacing: -.03em;
+    }
+    .start-content p {
+      margin: 9px auto 16px;
+      color: #cdd8d1;
+      font-size: .91rem;
+      line-height: 1.45;
+    }
+
+    .model-loader {
+      width: min(320px, 100%);
+      margin: 0 auto 14px;
+      text-align: left;
+    }
+    .model-loader[hidden] { display: none; }
+    .model-loader-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 7px;
+      color: #dce6df;
+      font: 500 .72rem/1.25 "IBM Plex Mono", monospace;
+    }
+    .model-loader-head output { color: #7cf2b1; }
+    .model-track {
+      height: 10px;
+      overflow: hidden;
+      border: 1.5px solid #f5faf6;
+      border-radius: 4px;
+      background: #28312c;
+    }
+    .model-bar {
+      width: 0;
+      height: 100%;
+      background: #7cf2b1;
+      transition: width .18s ease;
+    }
+    .model-loader.is-indeterminate .model-bar {
+      width: 38%;
+      animation: model-loading 1.15s ease-in-out infinite alternate;
+    }
+    @keyframes model-loading {
+      from { transform: translateX(-20%); }
+      to { transform: translateX(185%); }
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 8px;
+      padding: 10px;
+      background: var(--surface);
+    }
+
+    .btn {
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      border: 2px solid var(--line);
+      border-radius: 9px;
+      padding: 10px 14px;
+      background: var(--surface);
+      font-weight: 700;
+      font-size: .88rem;
+      line-height: 1;
+      box-shadow: 2px 2px 0 var(--line);
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform .12s ease, box-shadow .12s ease, background-color .12s ease;
+    }
+    .btn svg { width: 19px; height: 19px; flex: none; }
+    .btn-primary { background: var(--mint); color: #101713; }
+    .btn-blue { background: var(--blue); color: #10131a; }
+    .btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+    .btn:focus-visible, input:focus-visible { outline: 3px solid var(--blue); outline-offset: 2px; }
+    .btn:disabled { cursor: not-allowed; opacity: .46; box-shadow: none; }
+
+    .side { display: grid; gap: 14px; }
+    .panel { padding: 14px; }
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: .88rem;
+      letter-spacing: -.01em;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .stat {
+      min-width: 0;
+      padding: 10px;
+      border: 2px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+    }
+    .stat b {
+      display: block;
+      margin-bottom: 3px;
+      font: 600 clamp(1.15rem, 4vw, 1.45rem)/1 "IBM Plex Mono", monospace;
+    }
+    .stat span { color: var(--muted); font-size: .72rem; }
+
+    .range-wrap { display: grid; gap: 9px; }
+    .range-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: .78rem;
+    }
+    .range-label output {
+      color: var(--ink);
+      font: 600 .78rem "IBM Plex Mono", monospace;
+    }
+    input[type="range"] {
+      width: 100%;
+      height: 26px;
+      margin: 0;
+      accent-color: var(--mint-strong);
+      cursor: pointer;
+    }
+
+    .object-list {
+      display: grid;
+      gap: 7px;
+      min-height: 54px;
+    }
+    .object-empty {
+      margin: 0;
+      color: var(--muted);
+      font-size: .8rem;
+      line-height: 1.4;
+    }
+    .object-row {
+      display: grid;
+      grid-template-columns: 10px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      padding: 6px 8px;
+      border: 1.5px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-2);
+      font-size: .78rem;
+    }
+    .object-row .swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--blue); }
+    .object-row .score { font: 500 .7rem "IBM Plex Mono", monospace; color: var(--muted); }
+
+    .privacy-note {
+      margin: 12px 0 0;
+      padding-top: 11px;
+      border-top: 1.5px dashed var(--line);
+      color: var(--muted);
+      font-size: .74rem;
+      line-height: 1.45;
+    }
+
+    .toast {
+      position: fixed;
+      z-index: 20;
+      left: 50%;
+      bottom: max(18px, env(safe-area-inset-bottom));
+      width: min(calc(100% - 28px), 520px);
+      transform: translate(-50%, 18px);
+      padding: 11px 13px;
+      border: 2px solid var(--line);
+      border-radius: 9px;
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: var(--shadow);
+      font-size: .82rem;
+      line-height: 1.4;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s ease, transform .18s ease;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 760px) {
+      .app { padding-top: 12px; }
+      .intro { align-items: flex-start; }
+      .model-chip { margin-top: 2px; padding: 7px 9px; }
+      .layout { grid-template-columns: 1fr; }
+      .side { grid-template-columns: 1fr; }
+      .stage { aspect-ratio: 3 / 4; min-height: 400px; max-height: 68dvh; }
+      .panel { padding: 12px; }
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      .toolbar .btn-primary { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 440px) {
+      .intro { display: block; }
+      .intro h1 { max-width: 330px; }
+      .intro p { font-size: .86rem; }
+      .model-chip { margin-top: 11px; }
+      .viewer-top { align-items: flex-start; }
+      .viewer-meta { gap: 8px; flex-direction: column; align-items: flex-end; }
+      .btn { padding-inline: 10px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="intro" aria-labelledby="page-title">
+      <div>
+        <h1 id="page-title">Lihat. Kenali. Langsung.</h1>
+        <p>Arahkan kamera ke orang atau benda. Kotak deteksi dan label muncul langsung di perangkatmu.</p>
+      </div>
+      <div class="model-chip" title="Mesin deteksi ringan untuk demo browser">
+        <i aria-hidden="true"></i> YOLOv8n
+      </div>
+    </section>
+
+    <section class="layout" aria-label="Demo deteksi objek">
+      <article class="viewer-card">
+        <div class="viewer-top">
+          <div class="status" id="status" role="status" aria-live="polite">
+            <span class="live-dot" aria-hidden="true"></span>
+            <span id="statusText">Siap dicoba</span>
+          </div>
+          <div class="viewer-meta" aria-label="Statistik langsung">
+            <span><b id="fpsTop">0</b> FPS</span>
+            <span><b id="latencyTop">-</b> ms</span>
+          </div>
+        </div>
+
+        <div class="stage" id="stage">
+          <video id="video" autoplay muted playsinline aria-label="Tampilan kamera langsung"></video>
+          <canvas id="overlay" aria-hidden="true"></canvas>
+          <div class="start-layer" id="startLayer">
+            <div class="start-content">
+              <div class="camera-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 7.5h3l1.4-2h7.2l1.4 2h3a2 2 0 0 1 2 2v8.5a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"/>
+                  <circle cx="12" cy="13" r="4"/>
+                  <path d="M18.5 10.5h.01"/>
+                </svg>
+              </div>
+              <h2>Mulai dari kamera perangkatmu</h2>
+              <p>Kamera hanya diproses di browser. Model AI diunduh sekali dari CDN, lalu deteksi berjalan di perangkatmu.</p>
+              <div class="model-loader is-indeterminate" id="modelLoader" role="status" aria-live="polite">
+                <div class="model-loader-head">
+                  <span id="modelLoadStatus">Menghubungkan ke CDN</span>
+                  <output id="modelProgress">0%</output>
+                </div>
+                <div class="model-track" aria-hidden="true"><div class="model-bar" id="modelBar"></div></div>
+              </div>
+              <button class="btn btn-primary" id="startBtn" type="button" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M15 10l4.5-2.5v9L15 14"/><rect x="3" y="6" width="12" height="12" rx="2"/>
+                </svg>
+                <span id="startBtnLabel">Menyiapkan model...</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar" aria-label="Kontrol kamera">
+          <button class="btn btn-primary" id="toggleBtn" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>
+            </svg>
+            <span>Jeda deteksi</span>
+          </button>
+          <button class="btn" id="switchBtn" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20 7h-9a5 5 0 0 0-5 5v1"/><path d="m16 3 4 4-4 4"/><path d="M4 17h9a5 5 0 0 0 5-5v-1"/><path d="m8 21-4-4 4-4"/>
+            </svg>
+            Ganti
+          </button>
+          <button class="btn btn-blue" id="captureBtn" type="button" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M4 7.5h3l1.3-2h7.4l1.3 2h3a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="3.5"/>
+            </svg>
+            Simpan
+          </button>
+        </div>
+      </article>
+
+      <aside class="side" aria-label="Informasi deteksi">
+        <section class="panel">
+          <h2>Performa</h2>
+          <div class="stat-grid">
+            <div class="stat"><b id="objectCount">0</b><span>objek</span></div>
+            <div class="stat"><b id="fpsStat">0</b><span>FPS deteksi</span></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Ambang keyakinan</h2>
+          <div class="range-wrap">
+            <div class="range-label"><span>Tampilkan di atas</span><output id="thresholdValue" for="threshold">55%</output></div>
+            <input id="threshold" type="range" min="30" max="90" step="5" value="55" aria-label="Ambang keyakinan deteksi" />
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Terdeteksi sekarang</h2>
+          <div class="object-list" id="objectList" aria-live="polite">
+            <p class="object-empty">Belum ada objek. Aktifkan kamera untuk mulai.</p>
+          </div>
+          <p class="privacy-note">Frame kamera diproses di perangkat dan tidak diunggah. Demo ini memakai YOLOv8n 640px melalui ONNX Runtime Web.</p>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var video = document.getElementById('video');
+      var canvas = document.getElementById('overlay');
+      var ctx = canvas.getContext('2d');
+      var stage = document.getElementById('stage');
+      var startLayer = document.getElementById('startLayer');
+      var startBtn = document.getElementById('startBtn');
+      var startBtnLabel = document.getElementById('startBtnLabel');
+      var modelLoader = document.getElementById('modelLoader');
+      var modelLoadStatus = document.getElementById('modelLoadStatus');
+      var modelProgress = document.getElementById('modelProgress');
+      var modelBar = document.getElementById('modelBar');
+      var toggleBtn = document.getElementById('toggleBtn');
+      var toggleText = toggleBtn.querySelector('span');
+      var switchBtn = document.getElementById('switchBtn');
+      var captureBtn = document.getElementById('captureBtn');
+      var threshold = document.getElementById('threshold');
+      var thresholdValue = document.getElementById('thresholdValue');
+      var statusEl = document.getElementById('status');
+      var statusText = document.getElementById('statusText');
+      var objectCount = document.getElementById('objectCount');
+      var fpsStat = document.getElementById('fpsStat');
+      var fpsTop = document.getElementById('fpsTop');
+      var latencyTop = document.getElementById('latencyTop');
+      var objectList = document.getElementById('objectList');
+      var toast = document.getElementById('toast');
+
+      var ORT_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort.min.js';
+      var ORT_WASM_BASE = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/';
+      var MODEL_URL = 'https://huggingface.co/Kalray/yolov8/resolve/main/yolov8n.onnx';
+      var model = null;
+      var modelPromise = null;
+      var stream = null;
+      var running = false;
+      var paused = false;
+      var facingMode = 'environment';
+      var frameHandle = 0;
+      var lastPredictions = [];
+      var lastInferenceAt = 0;
+      var fpsSamples = [];
+      var toastTimer = 0;
+      var colors = ['#7cf2b1', '#ffe36e', '#ff8878', '#79b7ff', '#d3a4ff', '#70e3eb'];
+      var inputCanvas = document.createElement('canvas');
+      var inputCtx = inputCanvas.getContext('2d', { willReadFrequently: true });
+      var modelSize = 640;
+      var yoloClasses = [
+        'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+        'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat', 'dog', 'horse',
+        'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack', 'umbrella', 'handbag', 'tie', 'suitcase',
+        'frisbee', 'skis', 'snowboard', 'sports ball', 'kite', 'baseball bat', 'baseball glove', 'skateboard',
+        'surfboard', 'tennis racket', 'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+        'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant',
+        'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse', 'remote', 'keyboard', 'cell phone', 'microwave', 'oven',
+        'toaster', 'sink', 'refrigerator', 'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+      ];
+
+      function setStatus(text, kind) {
+        statusText.textContent = text;
+        statusEl.classList.toggle('is-live', kind === 'live');
+        statusEl.classList.toggle('is-error', kind === 'error');
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add('show');
+        toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 3200);
+      }
+
+      function friendlyCameraError(error) {
+        if (!error) return 'Kamera tidak bisa dibuka.';
+        if (error.name === 'NotAllowedError') return 'Izin kamera ditolak. Buka pengaturan situs, izinkan kamera, lalu coba lagi.';
+        if (error.name === 'NotFoundError') return 'Kamera tidak ditemukan di perangkat ini.';
+        if (error.name === 'NotReadableError') return 'Kamera sedang dipakai aplikasi lain. Tutup aplikasi tersebut lalu coba lagi.';
+        if (!window.isSecureContext) return 'Kamera membutuhkan koneksi HTTPS yang aman.';
+        return 'Kamera belum bisa dibuka. Coba muat ulang halaman.';
+      }
+
+      function stopStream() {
+        if (stream) {
+          stream.getTracks().forEach(function (track) { track.stop(); });
+          stream = null;
+        }
+      }
+
+      function updateModelLoader(label, percent, indeterminate) {
+        modelLoadStatus.textContent = label;
+        modelLoader.classList.toggle('is-indeterminate', Boolean(indeterminate));
+        if (!indeterminate) {
+          var safePercent = Math.max(0, Math.min(100, Math.round(percent || 0)));
+          modelProgress.textContent = safePercent + '%';
+          modelBar.style.width = safePercent + '%';
+        } else {
+          modelProgress.textContent = '';
+          modelBar.style.width = '';
+        }
+      }
+
+      function loadRuntimeScript() {
+        if (window.ort) return Promise.resolve();
+        return new Promise(function (resolve, reject) {
+          var script = document.createElement('script');
+          script.src = ORT_SCRIPT_URL;
+          script.async = true;
+          script.crossOrigin = 'anonymous';
+          script.onload = resolve;
+          script.onerror = function () { reject(new Error('ONNX Runtime gagal diunduh dari CDN. Periksa koneksi internet.')); };
+          document.head.appendChild(script);
+        });
+      }
+
+      async function fetchModelBytes() {
+        var response = await fetch(MODEL_URL, { mode: 'cors', cache: 'force-cache' });
+        if (!response.ok) throw new Error('Model YOLOv8n gagal diunduh dari CDN.');
+        var total = Number(response.headers.get('content-length')) || 0;
+        if (!response.body || !response.body.getReader) {
+          updateModelLoader('Mengunduh model YOLOv8n', 35, true);
+          return new Uint8Array(await response.arrayBuffer());
+        }
+        var reader = response.body.getReader();
+        var chunks = [];
+        var received = 0;
+        while (true) {
+          var part = await reader.read();
+          if (part.done) break;
+          chunks.push(part.value);
+          received += part.value.length;
+          if (total) {
+            var downloadPercent = 12 + (received / total) * 73;
+            updateModelLoader('Mengunduh model ' + Math.round(received / 1048576) + ' MB', downloadPercent, false);
+          } else {
+            updateModelLoader('Mengunduh model YOLOv8n', 35, true);
+          }
+        }
+        var bytes = new Uint8Array(received);
+        var offset = 0;
+        chunks.forEach(function (chunk) {
+          bytes.set(chunk, offset);
+          offset += chunk.length;
+        });
+        return bytes;
+      }
+
+      async function loadModelFromCdn() {
+        setStatus('Menyiapkan YOLOv8n', 'loading');
+        updateModelLoader('Memuat ONNX Runtime', 6, true);
+        await loadRuntimeScript();
+        if (!window.ort) throw new Error('ONNX Runtime gagal dimuat dari CDN.');
+        ort.env.wasm.wasmPaths = ORT_WASM_BASE;
+        ort.env.wasm.numThreads = 1;
+        var modelBytes = await fetchModelBytes();
+        updateModelLoader('Menyusun mesin deteksi', 90, true);
+        model = await ort.InferenceSession.create(modelBytes, {
+          executionProviders: ['wasm'],
+          graphOptimizationLevel: 'all'
+        });
+        updateModelLoader('Model siap', 100, false);
+        setStatus('Model siap - aktifkan kamera', 'loading');
+        startBtn.disabled = false;
+        startBtnLabel.textContent = 'Aktifkan kamera';
+        return model;
+      }
+
+      function loadModel() {
+        if (model) return Promise.resolve(model);
+        if (!modelPromise) {
+          modelPromise = loadModelFromCdn().catch(function (error) {
+            modelPromise = null;
+            throw error;
+          });
+        }
+        return modelPromise;
+      }
+
+      async function prepareModel() {
+        startBtn.disabled = true;
+        startBtnLabel.textContent = 'Menyiapkan model...';
+        modelLoader.hidden = false;
+        try {
+          await loadModel();
+        } catch (error) {
+          console.error(error);
+          setStatus('Model belum siap', 'error');
+          updateModelLoader('Unduhan gagal', 0, false);
+          startBtn.disabled = false;
+          startBtnLabel.textContent = 'Coba muat model';
+          showToast(error && error.message ? error.message : 'Model gagal dimuat. Coba lagi.');
+        }
+      }
+
+      async function openCamera() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw new Error('Browser ini belum mendukung akses kamera.');
+        }
+        stopStream();
+        var constraints = {
+          audio: false,
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await new Promise(function (resolve) {
+          if (video.readyState >= 2) resolve();
+          else video.onloadedmetadata = resolve;
+        });
+        await video.play();
+        video.style.setProperty('--mirror', facingMode === 'user' ? '-1' : '1');
+      }
+
+      async function start() {
+        startBtn.disabled = true;
+        if (!model) {
+          startBtnLabel.textContent = 'Menyiapkan model...';
+          try {
+            await loadModel();
+          } catch (modelError) {
+            console.error(modelError);
+            setStatus('Model gagal dimuat', 'error');
+            updateModelLoader('Unduhan gagal', 0, false);
+            startBtn.disabled = false;
+            startBtnLabel.textContent = 'Coba muat model';
+            showToast(modelError && modelError.message ? modelError.message : 'Model YOLOv8n gagal dimuat. Coba lagi.');
+            return;
+          }
+        }
+        startBtnLabel.textContent = 'Menyiapkan kamera...';
+        setStatus('Meminta izin kamera', 'loading');
+        try {
+          await openCamera();
+        } catch (cameraError) {
+          console.error(cameraError);
+          stopStream();
+          setStatus('Tidak dapat dimulai', 'error');
+          startBtn.disabled = false;
+          startBtnLabel.textContent = 'Coba kamera lagi';
+          showToast(friendlyCameraError(cameraError));
+          return;
+        }
+        startLayer.hidden = true;
+        running = true;
+        paused = false;
+        toggleBtn.disabled = false;
+        switchBtn.disabled = false;
+        captureBtn.disabled = false;
+        toggleText.textContent = 'Jeda deteksi';
+        setStatus('Deteksi aktif', 'live');
+        detectLoop();
+      }
+
+      function resizeCanvas() {
+        var rect = stage.getBoundingClientRect();
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        var w = Math.max(1, Math.round(rect.width));
+        var h = Math.max(1, Math.round(rect.height));
+        if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+          canvas.width = Math.round(w * dpr);
+          canvas.height = Math.round(h * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        return { width: w, height: h };
+      }
+
+      function colorFor(label) {
+        var sum = 0;
+        for (var i = 0; i < label.length; i++) sum += label.charCodeAt(i);
+        return colors[sum % colors.length];
+      }
+
+      function displayTransform(size) {
+        var vw = video.videoWidth || 1;
+        var vh = video.videoHeight || 1;
+        var scale = Math.max(size.width / vw, size.height / vh);
+        return {
+          scale: scale,
+          offsetX: (size.width - vw * scale) / 2,
+          offsetY: (size.height - vh * scale) / 2,
+          mirrored: facingMode === 'user'
+        };
+      }
+
+      function draw(predictions) {
+        var size = resizeCanvas();
+        ctx.clearRect(0, 0, size.width, size.height);
+        if (!video.videoWidth) return;
+        var t = displayTransform(size);
+        var minScore = Number(threshold.value) / 100;
+        var filtered = predictions.filter(function (p) { return p.score >= minScore; });
+
+        filtered.forEach(function (p) {
+          var x = p.bbox[0] * t.scale + t.offsetX;
+          var y = p.bbox[1] * t.scale + t.offsetY;
+          var w = p.bbox[2] * t.scale;
+          var h = p.bbox[3] * t.scale;
+          if (t.mirrored) x = size.width - x - w;
+          var color = colorFor(p.class);
+          var label = p.class + ' ' + Math.round(p.score * 100) + '%';
+
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 3;
+          ctx.strokeRect(x, y, w, h);
+
+          ctx.font = '600 13px "IBM Plex Mono", monospace';
+          var textWidth = ctx.measureText(label).width;
+          var labelX = Math.max(0, Math.min(x, size.width - textWidth - 16));
+          var labelY = Math.max(0, y - 28);
+          ctx.fillStyle = color;
+          ctx.fillRect(labelX, labelY, textWidth + 16, 27);
+          ctx.fillStyle = '#101713';
+          ctx.fillText(label, labelX + 8, labelY + 18);
+        });
+
+        updateObjectList(filtered);
+        objectCount.textContent = filtered.length;
+      }
+
+      function updateObjectList(predictions) {
+        if (!predictions.length) {
+          objectList.innerHTML = '<p class="object-empty">Belum ada objek yang melewati ambang keyakinan.</p>';
+          return;
+        }
+        var strongest = {};
+        predictions.forEach(function (p) {
+          if (!strongest[p.class] || strongest[p.class].score < p.score) strongest[p.class] = p;
+        });
+        objectList.innerHTML = Object.keys(strongest).slice(0, 6).map(function (label) {
+          var p = strongest[label];
+          return '<div class="object-row"><span class="swatch" style="background:' + colorFor(label) + '"></span><span>' + label + '</span><span class="score">' + Math.round(p.score * 100) + '%</span></div>';
+        }).join('');
+      }
+
+      function intersectionArea(a, b) {
+        var left = Math.max(a.bbox[0], b.bbox[0]);
+        var top = Math.max(a.bbox[1], b.bbox[1]);
+        var right = Math.min(a.bbox[0] + a.bbox[2], b.bbox[0] + b.bbox[2]);
+        var bottom = Math.min(a.bbox[1] + a.bbox[3], b.bbox[1] + b.bbox[3]);
+        return Math.max(0, right - left) * Math.max(0, bottom - top);
+      }
+
+      function iou(a, b) {
+        var overlap = intersectionArea(a, b);
+        var unionArea = a.bbox[2] * a.bbox[3] + b.bbox[2] * b.bbox[3] - overlap;
+        return unionArea > 0 ? overlap / unionArea : 0;
+      }
+
+      function nonMaxSuppress(boxes) {
+        var sorted = boxes.sort(function (a, b) { return b.score - a.score; });
+        var kept = [];
+        while (sorted.length && kept.length < 20) {
+          var best = sorted.shift();
+          kept.push(best);
+          sorted = sorted.filter(function (candidate) {
+            return iou(best, candidate) < 0.5;
+          });
+        }
+        return kept;
+      }
+
+      function prepareTensor() {
+        inputCanvas.width = modelSize;
+        inputCanvas.height = modelSize;
+        inputCtx.fillStyle = '#000';
+        inputCtx.fillRect(0, 0, modelSize, modelSize);
+        inputCtx.drawImage(video, 0, 0, modelSize, modelSize);
+        var pixels = inputCtx.getImageData(0, 0, modelSize, modelSize).data;
+        var area = modelSize * modelSize;
+        var input = new Float32Array(area * 3);
+        for (var i = 0, p = 0; i < area; i++, p += 4) {
+          input[i] = pixels[p] / 255;
+          input[area + i] = pixels[p + 1] / 255;
+          input[area * 2 + i] = pixels[p + 2] / 255;
+        }
+        return new ort.Tensor('float32', input, [1, 3, modelSize, modelSize]);
+      }
+
+      function processYoloOutput(data, dims) {
+        var minScore = Number(threshold.value) / 100;
+        var candidates = [];
+        var count = dims && dims.length >= 3 ? dims[dims.length - 1] : 8400;
+        var channels = dims && dims.length >= 3 ? dims[dims.length - 2] : 84;
+        var classCount = Math.min(80, channels - 4);
+        for (var index = 0; index < count; index++) {
+          var bestClass = 0;
+          var bestScore = 0;
+          for (var classId = 0; classId < classCount; classId++) {
+            var score = data[count * (classId + 4) + index];
+            if (score > bestScore) {
+              bestScore = score;
+              bestClass = classId;
+            }
+          }
+          if (bestScore < minScore) continue;
+          var cx = data[index] / modelSize * video.videoWidth;
+          var cy = data[count + index] / modelSize * video.videoHeight;
+          var w = data[count * 2 + index] / modelSize * video.videoWidth;
+          var h = data[count * 3 + index] / modelSize * video.videoHeight;
+          candidates.push({
+            class: yoloClasses[bestClass] || ('class ' + bestClass),
+            score: bestScore,
+            bbox: [cx - w / 2, cy - h / 2, w, h]
+          });
+        }
+        return nonMaxSuppress(candidates);
+      }
+
+      async function inferFrame() {
+        var tensor = prepareTensor();
+        var feeds = {};
+        feeds[model.inputNames[0]] = tensor;
+        var outputs = await model.run(feeds);
+        var output = outputs[model.outputNames[0]];
+        return processYoloOutput(output.data, output.dims);
+      }
+
+      async function detectLoop(timestamp) {
+        if (!running) return;
+        frameHandle = requestAnimationFrame(detectLoop);
+        if (paused || !model || video.readyState < 2) return;
+        if (timestamp && timestamp - lastInferenceAt < 70) return;
+        lastInferenceAt = timestamp || performance.now();
+        var began = performance.now();
+        try {
+          var predictions = await inferFrame();
+          lastPredictions = predictions;
+          draw(predictions);
+          var latency = Math.round(performance.now() - began);
+          latencyTop.textContent = latency;
+          var now = performance.now();
+          fpsSamples.push(now);
+          while (fpsSamples.length && fpsSamples[0] < now - 1000) fpsSamples.shift();
+          var fps = fpsSamples.length;
+          fpsTop.textContent = fps;
+          fpsStat.textContent = fps;
+        } catch (error) {
+          console.error(error);
+          setStatus('Deteksi terhenti', 'error');
+          showToast('Deteksi mengalami kendala. Coba jeda lalu lanjutkan kembali.');
+          paused = true;
+          toggleText.textContent = 'Lanjutkan';
+        }
+      }
+
+      function togglePause() {
+        paused = !paused;
+        toggleText.textContent = paused ? 'Lanjutkan deteksi' : 'Jeda deteksi';
+        setStatus(paused ? 'Deteksi dijeda' : 'Deteksi aktif', paused ? 'loading' : 'live');
+        if (!paused) fpsSamples = [];
+      }
+
+      async function switchCamera() {
+        switchBtn.disabled = true;
+        setStatus('Mengganti kamera', 'loading');
+        facingMode = facingMode === 'environment' ? 'user' : 'environment';
+        try {
+          await openCamera();
+          setStatus(paused ? 'Deteksi dijeda' : 'Deteksi aktif', paused ? 'loading' : 'live');
+          showToast(facingMode === 'environment' ? 'Kamera belakang aktif.' : 'Kamera depan aktif.');
+        } catch (error) {
+          facingMode = facingMode === 'environment' ? 'user' : 'environment';
+          setStatus('Kamera tidak tersedia', 'error');
+          showToast(friendlyCameraError(error));
+        } finally {
+          switchBtn.disabled = false;
+        }
+      }
+
+      function captureFrame() {
+        if (!video.videoWidth) return;
+        var size = resizeCanvas();
+        var exportCanvas = document.createElement('canvas');
+        var dpr = Math.min(window.devicePixelRatio || 1, 2);
+        exportCanvas.width = Math.round(size.width * dpr);
+        exportCanvas.height = Math.round(size.height * dpr);
+        var ex = exportCanvas.getContext('2d');
+        ex.scale(dpr, dpr);
+        var t = displayTransform(size);
+        ex.save();
+        if (t.mirrored) {
+          ex.translate(size.width, 0);
+          ex.scale(-1, 1);
+        }
+        ex.drawImage(video, t.offsetX, t.offsetY, video.videoWidth * t.scale, video.videoHeight * t.scale);
+        ex.restore();
+        ex.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, size.width, size.height);
+        exportCanvas.toBlob(function (blob) {
+          if (!blob) return;
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'deteksi-objek-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.png';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+          showToast('Gambar deteksi tersimpan.');
+        }, 'image/png');
+      }
+
+      startBtn.addEventListener('click', start);
+      toggleBtn.addEventListener('click', togglePause);
+      switchBtn.addEventListener('click', switchCamera);
+      captureBtn.addEventListener('click', captureFrame);
+      threshold.addEventListener('input', function () {
+        thresholdValue.textContent = threshold.value + '%';
+        draw(lastPredictions);
+      });
+      window.addEventListener('resize', function () { draw(lastPredictions); });
+      document.addEventListener('visibilitychange', function () {
+        if (document.hidden && running && !paused) {
+          paused = true;
+          toggleText.textContent = 'Lanjutkan deteksi';
+          setStatus('Dijeda saat tab tidak aktif', 'loading');
+        }
+      });
+      window.addEventListener('beforeunload', function () {
+        running = false;
+        cancelAnimationFrame(frameHandle);
+        stopStream();
+      });
+
+      prepareModel();
+    }());
+  </script>
+</body>
+</html>
